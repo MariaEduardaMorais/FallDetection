@@ -22,7 +22,7 @@ import kotlin.math.sqrt
 
 class FallDetectionManager(
     private val context: Context,
-    private val updateMqttStatus: (String) -> Unit // Callback para atualizar o status MQTT
+    private val updateMqttStatus: (String) -> Unit
 ) : SensorEventListener, MqttCallback {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -33,9 +33,8 @@ class FallDetectionManager(
     private var lastFallDetectionTime: Long = 0
     private val debounceTime = 5000 // 5 segundos entre detecções
     private val accelerationThreshold = 20.0f // Limite de aceleração para detectar queda
-    private val gyroscopeThreshold = 5.0f // Limite de giroscópio para confirmar queda
+    private val gyroscopeThreshold = 8.0f // Limite de giroscópio para confirmar queda
 
-    // Canal de notificação
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private val channelId = "fall_detection_channel"
 
@@ -63,8 +62,8 @@ class FallDetectionManager(
         val options = MqttConnectOptions()
         options.isCleanSession = true
         mqttClient.connect(options)
-        mqttClient.setCallback(this) // Define o callback para receber mensagens
-        mqttClient.subscribe("fall/detection") // Inscreve-se no tópico
+        mqttClient.setCallback(this)
+        mqttClient.subscribe("fall/detection")
         updateMqttStatus("Conectado ao MQTT")
     }
 
@@ -99,7 +98,7 @@ class FallDetectionManager(
             Log.d("FallDetection", message)
             publishMQTT(message)
             simulateEmailAndNotification(message)
-            showNotification(message) // Exibe a notificação no smartphone
+            showNotification(message)
         }
     }
 
@@ -125,13 +124,13 @@ class FallDetectionManager(
         val notification = NotificationCompat.Builder(context, channelId)
             .setContentTitle("Alerta de Queda!")
             .setContentText(message)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // Ícone da notificação
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true) // Fecha a notificação ao clicar nela
+            .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(1, notification) // Exibe a notificação
+        notificationManager.notify(1, notification)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -142,9 +141,33 @@ class FallDetectionManager(
         updateMqttStatus("Desconectado do MQTT")
     }
 
-    // Callbacks do MQTT
     override fun connectionLost(cause: Throwable?) {
         updateMqttStatus("Conexão MQTT perdida")
+        // Tenta reconectar após 5 segundos
+        reconnectMQTT()
+    }
+
+    private fun reconnectMQTT() {
+        val retryDelay = 5000L
+        Thread {
+            try {
+                Thread.sleep(retryDelay)
+                while (!mqttClient.isConnected) {
+                    try {
+                        mqttClient.connect(MqttConnectOptions().apply { isCleanSession = true })
+                        mqttClient.setCallback(this)
+                        mqttClient.subscribe("fall/detection")
+                        updateMqttStatus("Reconectado ao MQTT")
+                        break
+                    } catch (e: Exception) {
+                        Log.e("MQTT", "Falha ao reconectar: ${e.message}")
+                        Thread.sleep(retryDelay)
+                    }
+                }
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }.start()
     }
 
     override fun messageArrived(topic: String?, message: MqttMessage?) {
@@ -153,6 +176,5 @@ class FallDetectionManager(
     }
 
     override fun deliveryComplete(token: IMqttDeliveryToken?) {
-        // Não é necessário implementar
     }
 }
