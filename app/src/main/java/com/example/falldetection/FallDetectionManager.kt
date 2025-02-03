@@ -1,11 +1,17 @@
 package com.example.falldetection
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import org.eclipse.paho.client.mqttv3.MqttClient
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttMessage
@@ -15,7 +21,7 @@ import org.eclipse.paho.client.mqttv3.MqttCallback
 import kotlin.math.sqrt
 
 class FallDetectionManager(
-    context: Context,
+    private val context: Context,
     private val updateMqttStatus: (String) -> Unit // Callback para atualizar o status MQTT
 ) : SensorEventListener, MqttCallback {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -29,10 +35,28 @@ class FallDetectionManager(
     private val accelerationThreshold = 20.0f // Limite de aceleração para detectar queda
     private val gyroscopeThreshold = 5.0f // Limite de giroscópio para confirmar queda
 
+    // Canal de notificação
+    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val channelId = "fall_detection_channel"
+
     init {
         accelerometer?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         gyroscope?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        createNotificationChannel()
         connectMQTT()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Fall Detection",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notificações de detecção de queda"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 
     private fun connectMQTT() {
@@ -75,6 +99,7 @@ class FallDetectionManager(
             Log.d("FallDetection", message)
             publishMQTT(message)
             simulateEmailAndNotification(message)
+            showNotification(message) // Exibe a notificação no smartphone
         }
     }
 
@@ -86,6 +111,27 @@ class FallDetectionManager(
     private fun simulateEmailAndNotification(message: String) {
         Log.d("EmailSimulation", "E-mail enviado com sucesso: $message")
         Log.d("NotificationSimulation", "Notificação de queda recebida: $message")
+    }
+
+    private fun showNotification(message: String) {
+        val notificationIntent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setContentTitle("Alerta de Queda!")
+            .setContentText(message)
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // Ícone da notificação
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true) // Fecha a notificação ao clicar nela
+            .build()
+
+        notificationManager.notify(1, notification) // Exibe a notificação
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
