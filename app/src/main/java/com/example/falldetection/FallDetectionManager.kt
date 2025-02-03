@@ -23,6 +23,12 @@ class FallDetectionManager(
     private val gyroscope: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val mqttClient = MqttClient("tcp://broker.hivemq.com:1883", MqttClient.generateClientId(), MemoryPersistence())
 
+    // Variáveis para controle de debounce e sensibilidade
+    private var lastFallDetectionTime: Long = 0
+    private val debounceTime = 5000 // 5 segundos entre detecções
+    private val accelerationThreshold = 20.0f // Limite de aceleração para detectar queda
+    private val gyroscopeThreshold = 5.0f // Limite de giroscópio para confirmar queda
+
     init {
         accelerometer?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         gyroscope?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
@@ -49,18 +55,27 @@ class FallDetectionManager(
 
     private fun handleAcceleration(values: FloatArray) {
         val magnitude = sqrt(values[0] * values[0] + values[1] * values[1] + values[2] * values[2])
-        if (magnitude > 15.0f) detectFall("Queda detectada! Aceleração: $magnitude")
+        if (magnitude > accelerationThreshold) {
+            detectFall("Queda detectada! Aceleração: $magnitude")
+        }
     }
 
     private fun handleGyroscope(values: FloatArray) {
         val magnitude = sqrt(values[0] * values[0] + values[1] * values[1] + values[2] * values[2])
-        if (magnitude > 2.0f) detectFall("Queda detectada! Giroscópio: $magnitude")
+        if (magnitude > gyroscopeThreshold) {
+            detectFall("Queda confirmada! Giroscópio: $magnitude")
+        }
     }
 
     private fun detectFall(message: String) {
-        Log.d("FallDetection", message)
-        publishMQTT(message)
-        simulateEmailAndNotification(message)
+        val currentTime = System.currentTimeMillis()
+        // Verifica se já passou tempo suficiente desde a última detecção
+        if (currentTime - lastFallDetectionTime > debounceTime) {
+            lastFallDetectionTime = currentTime
+            Log.d("FallDetection", message)
+            publishMQTT(message)
+            simulateEmailAndNotification(message)
+        }
     }
 
     private fun publishMQTT(message: String) {
@@ -92,5 +107,6 @@ class FallDetectionManager(
     }
 
     override fun deliveryComplete(token: IMqttDeliveryToken?) {
+        // Não é necessário implementar
     }
 }
