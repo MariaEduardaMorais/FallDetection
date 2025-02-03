@@ -3,45 +3,33 @@ package com.example.falldetection
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalContext
 import com.example.falldetection.ui.theme.FallDetectionTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import android.widget.TextView
 
 class MainActivity : ComponentActivity() {
+    private lateinit var fallDetectionManager: FallDetectionManager
+    private lateinit var mqttStatusTextView: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            FallDetectionTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+        setContentView(R.layout.activity_main)
+
+        mqttStatusTextView = findViewById(R.id.mqttStatusTextView)
+
+        // Inicializa o FallDetectionManager e passa a função para atualizar o TextView
+        fallDetectionManager = FallDetectionManager(this) { message ->
+            runOnUiThread {
+                mqttStatusTextView.text = "Status MQTT: $message"
             }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    FallDetectionTheme {
-        Greeting("Android")
+    override fun onDestroy() {
+        super.onDestroy()
+        fallDetectionManager.unregister()
     }
 }
