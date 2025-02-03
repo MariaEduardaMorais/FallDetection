@@ -20,9 +20,7 @@ class MainActivity : ComponentActivity() {
             FallDetectionApp()
         }
 
-        // Inicializa o FallDetectionManager e passa a função para atualizar a UI
         fallDetectionManager = FallDetectionManager(this) {
-            // Atualiza a interface quando o status do MQTT muda
         }
     }
 
@@ -34,8 +32,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun FallDetectionApp() {
-    // Layout principal
-    val mqttStatus = "Conectando..." // Exemplo de status, pode ser atualizado dinamicamente
+    val mqttStatus = "Conectando..."
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -52,7 +49,6 @@ fun FallDetectionApp() {
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Exibe o status MQTT
             Text(
                 text = "Status do MQTT: $mqttStatus",
                 style = MaterialTheme.typography.bodyMedium,
@@ -61,10 +57,8 @@ fun FallDetectionApp() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Aqui você pode adicionar mais componentes de feedback visual ou interações
             Button(
                 onClick = {
-                    // Pode adicionar ações aqui, por exemplo, para testar a detecção de queda
                 }
             ) {
                 Text("Testar Detecção")
