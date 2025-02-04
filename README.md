@@ -18,7 +18,7 @@ A mobile application that detects falls using an accelerometer and gyroscope sen
 ## Setup 🛠️
 1. Clone the repository:
 
-        git clone https://github.com/yourusername/fall-detection.git
+        git clone https://github.com/MariaEduardaMorais/FallDetection.git
 
 2. Open the project in Android Studio and run the app.
 3. Modify the MQTT broker address if needed.
