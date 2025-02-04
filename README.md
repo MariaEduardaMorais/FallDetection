@@ -54,7 +54,7 @@ Um aplicativo móvel que detecta quedas usando os sensores de acelerômetro e gi
 ## Como Configurar 🛠️
 1. Clone o repositório:
 
-        git clone https://github.com/yourusername/fall-detection.git
+        git clone https://github.com/MariaEduardaMorais/FallDetection.git
 
 2. Abra o projeto no Android Studio e execute o app.
 3. Modifique o endereço do broker MQTT, se necessário.
