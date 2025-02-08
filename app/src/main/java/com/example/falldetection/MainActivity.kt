@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.widget.TextView
 import androidx.activity.ComponentActivity
-import com.example.falldetection.controller.FallDetectionManager
 
 class MainActivity : ComponentActivity() {
     private lateinit var fallDetectionManager: FallDetectionManager
