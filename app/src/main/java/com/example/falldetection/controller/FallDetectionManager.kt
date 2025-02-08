@@ -30,8 +30,8 @@ class FallDetectionManager(
     // debounce e sensibilidade
     private var lastFallDetectionTime: Long = 0
     private val debounceTime = 5000
-    private val accelerationThreshold = 20.0f // limite de aceleração para detectar possível queda
-    private val gyroscopeThreshold = 8.0f // limite de giroscópio para confirmar queda
+    private val accelerationThreshold = 20.0f // limite de aceleração p/ detectar possível queda
+    private val gyroscopeThreshold = 8.0f // limite de giroscópio p/ confirmar queda
 
     private var possibleFallTime: Long = 0
     private var detectedAcceleration = false
