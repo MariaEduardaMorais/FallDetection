@@ -1,4 +1,4 @@
-package com.example.falldetection
+package com.example.falldetection.controller
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,12 +12,13 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import org.eclipse.paho.client.mqttv3.MqttClient
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions
-import org.eclipse.paho.client.mqttv3.MqttMessage
+import com.example.falldetection.MainActivity
+import com.example.falldetection.R
+import com.example.falldetection.databaselite.FallDatabase
+import com.example.falldetection.entity.FallEntity
+import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.MqttCallback
+import javax.net.ssl.SSLSocketFactory
 import kotlin.math.sqrt
 
 class FallDetectionManager(
@@ -27,13 +28,16 @@ class FallDetectionManager(
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private val gyroscope: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
-    private val mqttClient = MqttClient("tcp://broker.hivemq.com:1883", MqttClient.generateClientId(), MemoryPersistence())
+    private val mqttClient = MqttClient("ssl://broker.hivemq.com:8883", MqttClient.generateClientId(), MemoryPersistence())
 
     // Variáveis para controle de debounce e sensibilidade
     private var lastFallDetectionTime: Long = 0
     private val debounceTime = 5000 // 5 segundos entre detecções
     private val accelerationThreshold = 20.0f // Limite de aceleração para detectar queda
     private val gyroscopeThreshold = 8.0f // Limite de giroscópio para confirmar queda
+
+    private var possibleFallTime: Long = 0
+    private var detectedAcceleration = false
 
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private val channelId = "fall_detection_channel"
@@ -61,10 +65,18 @@ class FallDetectionManager(
     private fun connectMQTT() {
         val options = MqttConnectOptions()
         options.isCleanSession = true
-        mqttClient.connect(options)
-        mqttClient.setCallback(this)
-        mqttClient.subscribe("fall/detection")
-        updateMqttStatus("Conectado ao MQTT")
+
+        try {
+            val sslSocketFactory = SSLSocketFactory.getDefault()
+            options.socketFactory = sslSocketFactory
+
+            mqttClient.connect(options)
+            mqttClient.setCallback(this)
+            mqttClient.subscribe("fall/detection")
+            updateMqttStatus("Conectado ao MQTT com SSL/TLS")
+        } catch (e: Exception) {
+            Log.e("MQTT", "Erro ao conectar com SSL: ${e.message}")
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
@@ -79,37 +91,35 @@ class FallDetectionManager(
     private fun handleAcceleration(values: FloatArray) {
         val magnitude = sqrt(values[0] * values[0] + values[1] * values[1] + values[2] * values[2])
         if (magnitude > accelerationThreshold) {
-            detectFall("Queda detectada! Aceleração: $magnitude")
+            possibleFallTime = System.currentTimeMillis()
+            detectedAcceleration = true
         }
     }
 
     private fun handleGyroscope(values: FloatArray) {
         val magnitude = sqrt(values[0] * values[0] + values[1] * values[1] + values[2] * values[2])
-        if (magnitude > gyroscopeThreshold) {
-            detectFall("Queda confirmada! Giroscópio: $magnitude")
+        if (detectedAcceleration && magnitude > gyroscopeThreshold) {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - possibleFallTime < debounceTime) {
+                "Queda confirmada! Aceleração e giroscópio detectaram impacto.".detectFall()
+                detectedAcceleration = false
+            }
         }
     }
 
-    private fun detectFall(message: String) {
+    private fun String.detectFall() {
         val currentTime = System.currentTimeMillis()
-        // Verifica se já passou tempo suficiente desde a última detecção
         if (currentTime - lastFallDetectionTime > debounceTime) {
             lastFallDetectionTime = currentTime
-            Log.d("FallDetection", message)
-            publishMQTT(message)
-            simulateEmailAndNotification(message)
-            showNotification(message)
+            Log.d("FallDetection", this)
+            publishMQTT(this)
+            showNotification(this)
         }
     }
 
     private fun publishMQTT(message: String) {
         val mqttMessage = MqttMessage(message.toByteArray())
         mqttClient.publish("fall/detection", mqttMessage)
-    }
-
-    private fun simulateEmailAndNotification(message: String) {
-        Log.d("EmailSimulation", "E-mail enviado com sucesso: $message")
-        Log.d("NotificationSimulation", "Notificação de queda recebida: $message")
     }
 
     private fun showNotification(message: String) {
@@ -143,7 +153,6 @@ class FallDetectionManager(
 
     override fun connectionLost(cause: Throwable?) {
         updateMqttStatus("Conexão MQTT perdida")
-        // Tenta reconectar após 5 segundos
         reconnectMQTT()
     }
 
@@ -173,8 +182,20 @@ class FallDetectionManager(
     override fun messageArrived(topic: String?, message: MqttMessage?) {
         val receivedMessage = String(message?.payload ?: byteArrayOf())
         updateMqttStatus("Mensagem recebida: $receivedMessage")
+
+        val fallDatabase = FallDatabase.getDatabase(context)
+        val fallDao = fallDatabase.fallDao()
+
+        Thread {
+            fallDao.insertFall(FallEntity(timestamp = System.currentTimeMillis(), message = receivedMessage))
+        }.start()
     }
 
-    override fun deliveryComplete(token: IMqttDeliveryToken?) {
+    fun getFallHistory(context: Context): List<FallEntity> {
+        val fallDatabase = FallDatabase.getDatabase(context)
+        val fallDao = fallDatabase.fallDao()
+        return fallDao.getAllFalls()
     }
+
+    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
 }
