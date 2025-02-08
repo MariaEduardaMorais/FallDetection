@@ -1,68 +1,31 @@
 package com.example.falldetection
 
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.widget.TextView
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.layout.*
+import com.example.falldetection.controller.FallDetectionManager
 
 class MainActivity : ComponentActivity() {
     private lateinit var fallDetectionManager: FallDetectionManager
+    private lateinit var mqttStatusTextView: TextView
 
+    @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            FallDetectionApp()
-        }
+        setContentView(R.layout.activity_main)
 
-        fallDetectionManager = FallDetectionManager(this) {
+        mqttStatusTextView = findViewById(R.id.mqttStatusTextView)
+
+        fallDetectionManager = FallDetectionManager(this) { status ->
+            runOnUiThread {
+                mqttStatusTextView.text = "Status do MQTT: $status"
+            }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         fallDetectionManager.unregister()
-    }
-}
-
-@Composable
-fun FallDetectionApp() {
-    val mqttStatus = "Conectando..."
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = "Sistema de Detecção de Quedas",
-                style = MaterialTheme.typography.titleLarge
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Status do MQTT: $mqttStatus",
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (mqttStatus.contains("Conectado")) Color.Green else Color.Red
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = {
-                }
-            ) {
-                Text("Testar Detecção")
-            }
-        }
     }
 }

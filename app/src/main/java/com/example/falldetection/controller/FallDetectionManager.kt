@@ -1,4 +1,4 @@
-package com.example.falldetection
+package com.example.falldetection.controller
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,6 +12,10 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.falldetection.MainActivity
+import com.example.falldetection.R
+import com.example.falldetection.databaselite.FallDatabase
+import com.example.falldetection.entity.FallEntity
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import javax.net.ssl.SSLSocketFactory
@@ -178,6 +182,19 @@ class FallDetectionManager(
     override fun messageArrived(topic: String?, message: MqttMessage?) {
         val receivedMessage = String(message?.payload ?: byteArrayOf())
         updateMqttStatus("Mensagem recebida: $receivedMessage")
+
+        val fallDatabase = FallDatabase.getDatabase(context)
+        val fallDao = fallDatabase.fallDao()
+
+        Thread {
+            fallDao.insertFall(FallEntity(timestamp = System.currentTimeMillis(), message = receivedMessage))
+        }.start()
+    }
+
+    fun getFallHistory(context: Context): List<FallEntity> {
+        val fallDatabase = FallDatabase.getDatabase(context)
+        val fallDao = fallDatabase.fallDao()
+        return fallDao.getAllFalls()
     }
 
     override fun deliveryComplete(token: IMqttDeliveryToken?) {}
